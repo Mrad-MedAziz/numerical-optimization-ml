@@ -1,6 +1,6 @@
 import os
-import matplotlib.pyplot as plt # type: ignore
-import numpy as np # type: ignore
+import matplotlib.pyplot as plt  # type: ignore
+import numpy as np  # type: ignore
 from optimization import LogisticRegression
 
 
@@ -14,32 +14,33 @@ def run_benchmark():
   X = np.vstack([X_0, X_1])
   y = np.array([0.0] * n_per_class + [1.0] * n_per_class)
 
-  # 2. Fit First-Order: Gradient Ascent
+  # 2. Fit first-order method: gradient ascent
   model_ga = LogisticRegression()
   model_ga.fit_gradient_ascent(X, y, lr=0.5, epochs=250)
 
-  # 3. Fit Second-Order: Newton-Raphson
+  # 3. Fit second-order method: Newton-Raphson
   model_newton = LogisticRegression()
   model_newton.fit_newton(X, y, max_iter=20, tol=1e-8)
 
-  # 4. Compute Optimality Gap: |ell(theta_t) - ell(theta*)|
-  # Using Newton's final converged log-likelihood as the empirical optimum ell*
+  # 4. Reference optimum ell* from a separate, tighter Newton run.
+  #    This keeps Newton's own final gap from being zero by construction.
+  ref = LogisticRegression()
+  ref.fit_newton(X, y, max_iter=60, tol=1e-12)
+  ell_star = ref.log_likelihood_history[-1]
+
+  # 5. Optimality gap: |ell(theta_t) - ell*|
   history_newton = np.array(model_newton.log_likelihood_history)
   history_ga = np.array(model_ga.log_likelihood_history)
 
-  # Optimal log-likelihood reached by Newton-Raphson
-  ell_star = history_newton[-1]
-
-    # Optimality gap
   gap_ga = np.abs(history_ga - ell_star)
   gap_newton = np.abs(history_newton - ell_star)
 
-  # Replace exact zeros with machine epsilon for clean log-scale display
+  # Clip exact zeros and values below float precision for the log-scale plot
   eps = 1e-16
   gap_ga = np.clip(gap_ga, eps, None)
   gap_newton = np.clip(gap_newton, eps, None)
 
-# 5. Plot Convergence
+  # 6. Plot convergence
   os.makedirs("figures", exist_ok=True)
   plt.figure(figsize=(9, 5.5), dpi=150)
 
@@ -64,14 +65,12 @@ def run_benchmark():
   )
 
   plt.yscale("log")
-  plt.xlim(
-      0, 35
-  )  # Truncated to t=35 to display second-order quadratic convergence
+  plt.xlim(0, 35)  # Truncated to t=35 to show the quadratic phase
   plt.xlabel("Optimization Step ($t$)", fontsize=11)
   plt.ylabel(
       r"Optimality Gap $|\ell(\theta^{(t)}) - \ell(\theta^*)|$ (Log Scale)",
       fontsize=11,
-    )
+  )
   plt.title(
       "Convergence Rate: First-Order vs. Second-Order Optimization",
       fontsize=12,
@@ -85,9 +84,9 @@ def run_benchmark():
   plt.savefig(output_path)
   plt.close()
 
-  print(f"[+] Benchmark completed successfully.")
-  print(f"    - Newton-Raphson iterations: {len(model_newton.log_likelihood_history)}")
-  print(f"    - Gradient Ascent iterations: {len(model_ga.log_likelihood_history)}")
+  print("[+] Benchmark completed successfully.")
+  print(f"    - Newton-Raphson updates: {n_newton_updates}")
+  print(f"    - Gradient Ascent updates: {n_ga_updates}")
   print(f"    - Convergence plot saved to:  {output_path}")
 
 

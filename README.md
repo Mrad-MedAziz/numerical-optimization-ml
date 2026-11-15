@@ -153,7 +153,7 @@ The convergence rates are:
 
 ### Trade-off Regimes
 
-* **$d \ll n$ (few features, many samples):** Newton-Raphson is the better choice. The $O(d^3)$ solve is small next to the $O(nd)$ passes over the data, and the method reaches machine precision in 6 to 8 iterations, where gradient ascent needs thousands.
+* **$d \ll n$ (few features, many samples):** Newton-Raphson is the better choice in iterations. The $O(d^3)$ solve is small next to the $O(nd)$ passes over the data, and the method reaches machine precision in 7 iterations, where gradient ascent at the benchmark learning rate needs hundreds.
 * **$d \gg n$ (high-dimensional):** First-order methods are the practical choice. Forming and factoring a $d \times d$ matrix becomes prohibitive when $d > 10^4$.
 
 ---
@@ -166,17 +166,18 @@ The benchmark compares first-order gradient ascent with second-order Newton-Raph
 
 * **Dataset:** Bivariate binary classification with $n = 300$ and $d = 2$. A bias term gives $d + 1 = 3$ parameters.
 * **Clusters:** $n_0 = n_1 = 150$, $\mu_0 = (-1, -1)^T$, $\mu_1 = (+1, +1)^T$, $\Sigma = I_2$ (so $\sigma = 1.0$), seed 42.
-* **First-order baseline:** Gradient ascent with learning rate $\alpha = 0.5$, run for 250 updates.
-* **Second-order method:** Newton-Raphson / IRLS with Tikhonov damping $\epsilon_{\text{reg}} = 10^{-8}$ and stopping tolerance $\lVert \Delta\theta \rVert_2 < 10^{-8}$.
-* **Optimality gap:** $\left|\ell(\theta^{(t)}) - \ell^{\star}\right|$, where $\ell^{\star} = \ell(\theta^{(7)}) \approx -0.190684$ is the maximum log-likelihood reached at convergence. Exact zeros are clipped to $10^{-16}$ for the log-scale plot.
+* **First-order baseline:** Gradient ascent with learning rate $\alpha = 0.5$, run for 250 iterations, giving 249 updates in the log. It stops early only if $\lVert \nabla_\theta \ell \rVert < 10^{-5}$, which does not happen in this run.
+* **Second-order method:** Newton-Raphson / IRLS with Tikhonov damping $\epsilon_{\text{reg}} = 10^{-8}$. It stops when $\lVert \nabla_\theta \ell(\theta) \rVert < 10^{-8}$, which takes 7 updates in this run.
+* **Reference optimum:** $\ell^{\star} \approx -0.190684$ is computed from a separate Newton run with tolerance $10^{-12}$ and at most 60 iterations, not from the benchmark's own final iterate.
+* **Optimality gap:** $\left|\ell(\theta^{(t)}) - \ell^{\star}\right|$. Gaps below the floating-point floor are clipped to $10^{-16}$ for the log-scale plot.
 
 ![Convergence rate comparison](./figures/convergence.png)
 
-The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradient ascent continues to $t = 250$.
+The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradient ascent continues to $t = 249$.
 
 ### Interpretation
 
-* **Gradient ascent (blue):** Converges linearly, with the gap shrinking by a roughly constant factor per step. It reaches 1.04e-2 at $t = 35$, first drops below $10^{-3}$ at update 98 (9.75e-4), and ends at 1.32e-5 after 249 updates.
+* **Gradient ascent (blue):** Converges linearly, with the gap shrinking by a roughly constant factor per step. It reaches $1.04 \times 10^{-2}$ at $t = 35$, first drops below $10^{-3}$ at update 98 ($9.75 \times 10^{-4}$), and ends at $1.32 \times 10^{-5}$ at update 249.
 * **Newton-Raphson (red):** Converges quadratically, so the number of correct digits roughly doubles at each update near the optimum.
 
 | Update | Gap |
@@ -188,7 +189,7 @@ The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradie
 | 4 | 3.44e-4 |
 | 5 | 1.99e-6 |
 | 6 | 7.77e-11 |
-| 7 | 0 (floating-point floor) |
+| 7 | 1e-16 (clipped at the floating-point floor) |
 
 ---
 
