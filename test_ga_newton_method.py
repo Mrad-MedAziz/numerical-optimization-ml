@@ -1,4 +1,4 @@
-import numpy as np # type: ignore
+import numpy as np  # type: ignore
 from optimization.logistic_model import LogisticRegression
 
 # Synthetic 2D classification dataset with overlap
@@ -16,6 +16,7 @@ model_newton.fit_newton(X, y)
 model_ga = LogisticRegression()
 model_ga.fit_gradient_ascent(X, y, lr=0.5, epochs=500)
 
-print(f"Newton-Raphson converged in {len(model_newton.log_likelihood_history)} iterations")
+newton_updates = len(model_newton.log_likelihood_history) - 1
+print(f"Newton-Raphson converged in {newton_updates} updates")
 print(f"Newton Final Likelihood: {model_newton.likelihood:.6f}")
 print(f"Gradient Ascent Final Likelihood: {model_ga.likelihood:.6f}")

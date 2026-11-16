@@ -128,13 +128,15 @@ Translating these equations directly into floating-point code causes numerical p
    H = -(1.0 / n) * (X_b.T @ (w * X_b))           # Shape (d+1, d+1)
 ```
 
-4. **Tikhonov curvature damping.** When predictions saturate ($p_i \to 0$ or $1$), $w_i \to 0$ and $H$ becomes nearly singular. Subtracting $\epsilon_{\text{reg}} = 10^{-8}$ times the identity makes $H$ negative definite with a non-zero determinant. The update then subtracts the damped Newton step:
+4. **Tikhonov curvature damping.** When predictions saturate ($p_i \to 0$ or $1$), $w_i \to 0$ and $H$ becomes nearly singular. Subtracting $\epsilon_{\text{reg}}$ times the identity keeps $H$ invertible. The update then subtracts the damped Newton step:
 
 ```python
    H_reg = H - eps_reg * np.eye(d + 1)
    delta = np.linalg.solve(H_reg, grad)
    theta = theta - delta
 ```
+
+   With the default $\epsilon_{\text{reg}} = 10^{-8}$, damping had no measurable effect in our experiments (Section 5). At $\epsilon_{\text{reg}} = 10^{-4}$, it shrinks the parameter norm on separable data.
 
 ---
 
@@ -153,7 +155,7 @@ The convergence rates are:
 
 ### Trade-off Regimes
 
-* **$d \ll n$ (few features, many samples):** Newton-Raphson is the better choice in iterations. The $O(d^3)$ solve is small next to the $O(nd)$ passes over the data, and the method reaches machine precision in 7 iterations, where gradient ascent at the benchmark learning rate needs hundreds.
+* **$d \ll n$ (few features, many samples):** Newton-Raphson needs far fewer iterations: 7 for the benchmark, against hundreds for gradient ascent at the benchmark learning rate. Each Newton update costs more, because it solves a $(d+1) \times (d+1)$ system, but with few features that cost is small (Section 5).
 * **$d \gg n$ (high-dimensional):** First-order methods are the practical choice. Forming and factoring a $d \times d$ matrix becomes prohibitive when $d > 10^4$.
 
 ---
@@ -193,13 +195,53 @@ The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradie
 
 ---
 
-## 5. Repository Structure
+## 5. Additional Experiments
+
+### 20 Seeds and Learning-Rate Sweep
+
+`experiments/study.py` repeats the comparison on 20 synthetic datasets, generated with seeds 0 to 19 using the benchmark's clusters, with $n = 300$.
+
+* **Newton-Raphson:** With the same gradient-norm tolerance of $10^{-8}$, it takes 7 to 8 updates on every dataset.
+* **Gradient ascent at $\alpha = 0.5$:** Measured against the reference optimum, it first reaches a gap below $10^{-3}$ after 57 to 182 iterations. It did not reach that gap within the 2000-iteration cap on any dataset.
+* **Learning-rate sweep:** Gradient ascent stops at the gradient-norm tolerance of $10^{-5}$ or the 2000-iteration cap. At $\alpha = 0.05$ and $\alpha = 0.1$, the median run hits the cap. The medians for $\alpha = 0.5, 1.0, 2.0, 4.0$ are 683, 339, 166, and 65 iterations.
+
+These counts use different stopping rules, so compare the Newton and gradient ascent numbers only as stated above.
+
+### Wall-Clock Time
+
+On the benchmark dataset, 50 repeated runs per method gave these medians, with interquartile ranges in brackets:
+
+* **Newton-Raphson:** 0.38 ms for 7 updates (0.33 to 0.48 ms), about 0.05 ms per update.
+* **Gradient ascent, $\alpha = 0.5$, 250 iterations:** 5.19 ms for 249 updates (5.06 to 5.63 ms), about 0.02 ms per update.
+
+These totals are not an accuracy-matched comparison. Gradient ascent's 249 updates end at a gap of $1.3 \times 10^{-5}$, while Newton reaches machine precision. The timings show that gradient ascent is cheaper per update in this setting, and that Newton's advantage is in the number of updates.
+
+### Damping Check
+
+Each run used exactly 10 Newton updates, with the gradient stopping rule disabled, so every damping value is compared at the same step.
+
+| Data | $\epsilon_{\text{reg}}$ | Parameter norm | Log-likelihood |
+| :--- | :--- | :--- | :--- |
+| Overlapping benchmark data | 0 | 2.832 | -0.190684 |
+| Overlapping benchmark data | $10^{-8}$ | 2.832 | -0.190684 |
+| Overlapping benchmark data | $10^{-4}$ | 2.832 | -0.190684 |
+| Separable data (centers at $\pm 3$) | 0 | 3.598 | -0.000110 |
+| Separable data (centers at $\pm 3$) | $10^{-8}$ | 3.598 | -0.000110 |
+| Separable data (centers at $\pm 3$) | $10^{-4}$ | 3.440 | -0.000121 |
+
+On the overlapping data, damping has no effect at any of the three values. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also has no effect, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a regularization effect, not a stabilization effect, and it appears only at the larger damping value. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
+
+---
+
+## 6. Repository Structure
 
 ```text
 numerical-optimization-ml/
 ├── README.md                 # Derivations and benchmark documentation
 ├── requirements.txt          # Dependencies (numpy, matplotlib)
 ├── benchmark.py              # Convergence experiment and plot generator
+├── experiments/
+│   └── study.py              # 20-seed comparison, learning-rate sweep, timing, damping check
 ├── figures/
 │   └── convergence.png       # Generated optimality gap plot
 └── optimization/
@@ -211,7 +253,7 @@ numerical-optimization-ml/
 
 ---
 
-## 6. Reproduction
+## 7. Reproduction
 
 Clone the repository and install the requirements:
 
@@ -225,4 +267,10 @@ Run the benchmark:
 
 ```bash
 python benchmark.py
+```
+
+Run the 20-seed experiments, timing, and damping check:
+
+```bash
+python -m experiments.study
 ```
