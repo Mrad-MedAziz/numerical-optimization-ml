@@ -202,7 +202,7 @@ The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradie
 `experiments/study.py` repeats the comparison on 20 synthetic datasets, generated with seeds 0 to 19 using the benchmark's clusters, with $n = 300$.
 
 * **Newton-Raphson:** With the same gradient-norm tolerance of $10^{-8}$, it takes 7 to 8 updates on every dataset.
-* **Gradient ascent at $\alpha = 0.5$:** Measured against the reference optimum, it first reaches a gap below $10^{-3}$ after 57 to 182 iterations. It did not reach that gap within the 2000-iteration cap on any dataset.
+* **Gradient ascent at $\alpha = 0.5$:** Measured against the reference optimum, it first reaches a gap below $10^{-3}$ after 57 to 182 iterations, and it reached that gap on every dataset.
 * **Learning-rate sweep:** Gradient ascent stops at the gradient-norm tolerance of $10^{-5}$ or the 2000-iteration cap. At $\alpha = 0.05$ and $\alpha = 0.1$, the median run hits the cap. The medians for $\alpha = 0.5, 1.0, 2.0, 4.0$ are 683, 339, 166, and 65 iterations.
 
 These counts use different stopping rules, so compare the Newton and gradient ascent numbers only as stated above.
@@ -211,8 +211,8 @@ These counts use different stopping rules, so compare the Newton and gradient as
 
 On the benchmark dataset, 50 repeated runs per method gave these medians, with interquartile ranges in brackets:
 
-* **Newton-Raphson:** 0.38 ms for 7 updates (0.33 to 0.48 ms), about 0.05 ms per update.
-* **Gradient ascent, $\alpha = 0.5$, 250 iterations:** 5.19 ms for 249 updates (5.06 to 5.63 ms), about 0.02 ms per update.
+* **Newton-Raphson:** 0.36 ms for 7 updates (0.35 to 0.37 ms), about 0.05 ms per update.
+* **Gradient ascent, $\alpha = 0.5$, 250 iterations:** 6.87 ms for 249 updates (6.85 to 6.95 ms), about 0.03 ms per update.
 
 These totals are not an accuracy-matched comparison. Gradient ascent's 249 updates end at a gap of $1.3 \times 10^{-5}$, while Newton reaches machine precision. The timings show that gradient ascent is cheaper per update in this setting, and that Newton's advantage is in the number of updates.
 
@@ -225,9 +225,9 @@ Each run used exactly 10 Newton updates, with the gradient stopping rule disable
 | Overlapping benchmark data | 0 | 2.832 | -0.190684 |
 | Overlapping benchmark data | $10^{-8}$ | 2.832 | -0.190684 |
 | Overlapping benchmark data | $10^{-4}$ | 2.832 | -0.190684 |
-| Separable data (centers at $\pm 3$) | 0 | 3.598 | -0.000110 |
-| Separable data (centers at $\pm 3$) | $10^{-8}$ | 3.598 | -0.000110 |
-| Separable data (centers at $\pm 3$) | $10^{-4}$ | 3.440 | -0.000121 |
+| Separable data (centers at $\pm 3$) | 0 | 3.598 | -0.000044 |
+| Separable data (centers at $\pm 3$) | $10^{-8}$ | 3.598 | -0.000044 |
+| Separable data (centers at $\pm 3$) | $10^{-4}$ | 3.440 | -0.000056 |
 
 On the overlapping data, damping has no effect at any of the three values. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also has no effect, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a regularization effect, not a stabilization effect, and it appears only at the larger damping value. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
 
@@ -241,6 +241,7 @@ numerical-optimization-ml/
 ├── requirements.txt          # Dependencies (numpy, matplotlib)
 ├── benchmark.py              # Convergence experiment and plot generator
 ├── experiments/
+│   ├── __init__.py           # Makes experiments a package
 │   └── study.py              # 20-seed comparison, learning-rate sweep, timing, damping check
 ├── figures/
 │   └── convergence.png       # Generated optimality gap plot
