@@ -1,0 +1,41 @@
+seed,method,gap_threshold,updates_to_gap,total_updates,converged
+0,Newton,0.001,4,7,True
+0,Gradient ascent,0.001,86,495,True
+1,Newton,0.001,4,7,True
+1,Gradient ascent,0.001,73,429,True
+2,Newton,0.001,4,7,True
+2,Gradient ascent,0.001,107,662,True
+3,Newton,0.001,4,7,True
+3,Gradient ascent,0.001,64,373,True
+4,Newton,0.001,4,7,True
+4,Gradient ascent,0.001,122,729,True
+5,Newton,0.001,5,8,True
+5,Gradient ascent,0.001,143,915,True
+6,Newton,0.001,4,7,True
+6,Gradient ascent,0.001,132,807,True
+7,Newton,0.001,5,8,True
+7,Gradient ascent,0.001,173,1069,True
+8,Newton,0.001,4,7,True
+8,Gradient ascent,0.001,57,333,True
+9,Newton,0.001,4,7,True
+9,Gradient ascent,0.001,76,443,True
+10,Newton,0.001,4,7,True
+10,Gradient ascent,0.001,129,780,True
+11,Newton,0.001,4,7,True
+11,Gradient ascent,0.001,108,667,True
+12,Newton,0.001,4,7,True
+12,Gradient ascent,0.001,95,601,True
+13,Newton,0.001,5,8,True
+13,Gradient ascent,0.001,182,1178,True
+14,Newton,0.001,4,7,True
+14,Gradient ascent,0.001,123,751,True
+15,Newton,0.001,4,7,True
+15,Gradient ascent,0.001,139,851,True
+16,Newton,0.001,4,7,True
+16,Gradient ascent,0.001,116,699,True
+17,Newton,0.001,4,7,True
+17,Gradient ascent,0.001,127,776,True
+18,Newton,0.001,4,7,True
+18,Gradient ascent,0.001,81,477,True
+19,Newton,0.001,4,7,True
+19,Gradient ascent,0.001,100,600,True

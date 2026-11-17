@@ -1,6 +1,19 @@
 # Numerical Optimization & First-Principles Machine Learning
 
-A pure NumPy implementation of foundational statistical learning algorithms and numerical optimization routines. This repository bridges blackboard theoretical derivations, specifically from **Stanford CS229**, with production-grade numerical stability. It avoids high-level machine learning frameworks (`scikit-learn`, `PyTorch`) to expose exact matrix calculus, curvature computations, and convergence behaviors.
+Independent implementations of ordinary least squares and binary logistic regression in NumPy, following the mathematical formulations studied in Stanford CS229. The project examines gradients, curvature, convergence experiments, and numerical limitations without using machine learning frameworks.
+
+## Run it
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
+python benchmark.py
+python -m experiments.study
+python -m unittest discover -s tests -v
+```
+
+Run commands from the repository root. The study writes per-seed, accuracy-matched results to [`results/matched_accuracy.csv`](results/matched_accuracy.csv). The `test_*.py` files at the root are original demonstration scripts; `tests/test_numerics.py` contains the automated numerical checks.
 
 ---
 
@@ -38,7 +51,7 @@ $$
 X_b^T X_b \theta = X_b^T y \implies \theta^{\star} = (X_b^T X_b)^{-1} X_b^T y
 $$
 
-> **Implementation note:** Rather than computing the explicit matrix inverse $(X_b^T X_b)^{-1}$, parameters are computed via `np.linalg.solve(X_b.T @ X_b, X_b.T @ y)`, which uses LU factorization to prevent floating-point precision degradation.
+> **Implementation note:** Rather than computing the explicit matrix inverse $(X_b^T X_b)^{-1}$, parameters are computed via `np.linalg.solve(X_b.T @ X_b, X_b.T @ y)`, which avoids forming an explicit inverse. Normal equations still square the design matrix's condition number; this educational solver assumes full column rank and is not a substitute for a QR- or SVD-based least-squares solver on ill-conditioned data.
 
 ---
 
@@ -104,31 +117,33 @@ $$
 
 ---
 
-## 2. Numerical Stability Engineering
+## 2. Numerical safeguards
 
 Translating these equations directly into floating-point code causes numerical problems. This implementation uses four safeguards:
 
-1. **Sigmoid domain clamping.** For $z < -709$, evaluating $e^{-z}$ overflows IEEE 754 floating point to `inf`. Logits are clipped first:
+1. **Stable sigmoid.** The exponential is evaluated only at nonpositive arguments, avoiding overflow without clipping logits:
 
 ```python
-   z_safe = np.clip(z, -500.0, 500.0)
-   p = 1.0 / (1.0 + np.exp(-z_safe))
+exp_neg_abs = np.exp(-np.abs(z))
+p = np.where(z >= 0, 1.0 / (1.0 + exp_neg_abs),
+             exp_neg_abs / (1.0 + exp_neg_abs))
 ```
 
-2. **Log-loss guardrails.** Evaluating $\ln(0)$ gives $-\infty$ and propagates `NaN`. Probabilities are clipped before taking logarithms:
+2. **Log-likelihood from logits.** Fitting evaluates the Bernoulli log-likelihood with `np.logaddexp`, avoiding `log(0)` and an artificial probability-clipping floor:
 
 ```python
-   p_safe = np.clip(p, 1e-15, 1.0 - 1e-15)
+signed_z = np.where(y == 1.0, -z, z)
+ell = -np.mean(np.logaddexp(0.0, signed_z))
 ```
 
-3. **$O(nd)$ Hessian assembly.** Forming $W = \mathrm{diag}(w)$ as an $n \times n$ matrix costs $O(n^2)$ memory, roughly 80 GB for $n = 100{,}000$. Broadcasting scales the rows directly instead:
+3. **Hessian assembly without a dense weight matrix.** Forming $W = \mathrm{diag}(w)$ as an $n \times n$ matrix costs $O(n^2)$ memory, roughly 80 GB for $n = 100{,}000$. Broadcasting scales the rows directly instead:
 
 ```python
    w = (p * (1.0 - p)).reshape(n, 1)              # Shape (n, 1)
    H = -(1.0 / n) * (X_b.T @ (w * X_b))           # Shape (d+1, d+1)
 ```
 
-4. **Tikhonov curvature damping.** When predictions saturate ($p_i \to 0$ or $1$), $w_i \to 0$ and $H$ becomes nearly singular. Subtracting $\epsilon_{\text{reg}}$ times the identity keeps $H$ invertible. The update then subtracts the damped Newton step:
+4. **Tikhonov curvature damping.** When predictions saturate ($p_i \to 0$ or $1$), $w_i \to 0$ and $H$ becomes nearly singular. For positive $\epsilon_{\text{reg}}$, subtracting it times the identity makes $H$ negative definite in exact arithmetic. This does not by itself guarantee a well-conditioned solve or a successful full Newton step in floating point. The update then subtracts the damped Newton step:
 
 ```python
    H_reg = H - eps_reg * np.eye(d + 1)
@@ -136,7 +151,7 @@ Translating these equations directly into floating-point code causes numerical p
    theta = theta - delta
 ```
 
-   With the default $\epsilon_{\text{reg}} = 10^{-8}$, damping had no measurable effect in our experiments (Section 5). At $\epsilon_{\text{reg}} = 10^{-4}$, it shrinks the parameter norm on separable data.
+   With the default $\epsilon_{\text{reg}} = 10^{-8}$, damping had no visible effect at the reported precision in the original cluster experiments (Section 5). At $\epsilon_{\text{reg}} = 10^{-4}$, it shrinks the parameter norm on separable data.
 
 ---
 
@@ -144,11 +159,15 @@ Translating these equations directly into floating-point code causes numerical p
 
 | Algorithm | Order | Per-iteration time | Memory | Convergence rate |
 | :--- | :--- | :--- | :--- | :--- |
-| OLS (normal equations) | Analytical | O(nd^2 + d^3), single solve | O(d^2) | Exact (closed form) |
-| Gradient ascent | First-order | O(nd) | O(d) | Linear |
-| Newton-Raphson / IRLS | Second-order | O(nd^2 + d^3) | O(d^2) | Quadratic |
+| OLS (normal equations) | Analytical | O(nd^2 + d^3), single solve | O(d^2) | Direct solve; subject to floating-point error |
+| Gradient ascent | First-order | O(nd) | O(d) | Linear under suitable local strong concavity and step size |
+| Newton-Raphson / IRLS | Second-order | O(nd^2 + d^3) | O(nd + d^2) | Locally quadratic for undamped Newton under regularity assumptions |
 
-The convergence rates are:
+Memory entries describe solver working storage in addition to the input data and stored histories. The current Newton implementation materializes a weighted design matrix. Broadcasting avoids an n-by-n weight matrix, but Hessian multiplication still costs O(nd^2).
+
+The following textbook rates require assumptions: a finite solution, sufficient curvature, and an appropriate step size or starting point. They are not unconditional guarantees for separable logistic data. A fixed positive damping value can change Newton's asymptotic rate.
+
+Under the corresponding assumptions:
 
 * **Gradient ascent (linear):** $\lVert \theta^{(t)} - \theta^{\star} \rVert \le c^t \, \lVert \theta^{(0)} - \theta^{\star} \rVert$, with $0 < c < 1$.
 * **Newton-Raphson (quadratic):** $\lVert \theta^{(t+1)} - \theta^{\star} \rVert \le M \, \lVert \theta^{(t)} - \theta^{\star} \rVert^2$.
@@ -156,7 +175,7 @@ The convergence rates are:
 ### Trade-off Regimes
 
 * **$d \ll n$ (few features, many samples):** Newton-Raphson needs far fewer iterations: 7 for the benchmark, against hundreds for gradient ascent at the benchmark learning rate. Each Newton update costs more, because it solves a $(d+1) \times (d+1)$ system, but with few features that cost is small (Section 5).
-* **$d \gg n$ (high-dimensional):** First-order methods are the practical choice. Forming and factoring a $d \times d$ matrix becomes prohibitive when $d > 10^4$.
+* **$d \gg n$ (high-dimensional):** First-order methods are the practical choice. The cost of forming and factoring a dense $d \times d$ matrix can dominate; the practical threshold depends on hardware and structure.
 
 ---
 
@@ -168,18 +187,18 @@ The benchmark compares first-order gradient ascent with second-order Newton-Raph
 
 * **Dataset:** Bivariate binary classification with $n = 300$ and $d = 2$. A bias term gives $d + 1 = 3$ parameters.
 * **Clusters:** $n_0 = n_1 = 150$, $\mu_0 = (-1, -1)^T$, $\mu_1 = (+1, +1)^T$, $\Sigma = I_2$ (so $\sigma = 1.0$), seed 42.
-* **First-order baseline:** Gradient ascent with learning rate $\alpha = 0.5$, run for 250 iterations, giving 249 updates in the log. It stops early only if $\lVert \nabla_\theta \ell \rVert < 10^{-5}$, which does not happen in this run.
+* **First-order baseline:** Gradient ascent with learning rate $\alpha = 0.5$, run for a budget of 250 updates. The history includes the initial point and each post-update point. It stops early only if $\lVert \nabla_\theta \ell \rVert < 10^{-5}$, which does not happen in this run.
 * **Second-order method:** Newton-Raphson / IRLS with Tikhonov damping $\epsilon_{\text{reg}} = 10^{-8}$. It stops when $\lVert \nabla_\theta \ell(\theta) \rVert < 10^{-8}$, which takes 7 updates in this run.
 * **Reference optimum:** $\ell^{\star} \approx -0.190684$ is computed from a separate Newton run with tolerance $10^{-12}$ and at most 60 iterations, not from the benchmark's own final iterate.
-* **Optimality gap:** $\left|\ell(\theta^{(t)}) - \ell^{\star}\right|$. Gaps below the floating-point floor are clipped to $10^{-16}$ for the log-scale plot.
+* **Optimality gap:** $\left|\ell(\theta^{(t)}) - \ell^{\star}\right|$. For display, gaps are clipped to $10^{-16}$. This plotting floor is not a certified error bound. The reference is a numerical approximation using the same solver, not an independent mathematical certificate.
 
 ![Convergence rate comparison](./figures/convergence.png)
 
-The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradient ascent continues to $t = 249$.
+The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradient ascent continues to $t = 250$.
 
 ### Interpretation
 
-* **Gradient ascent (blue):** Converges linearly, with the gap shrinking by a roughly constant factor per step. It reaches $1.04 \times 10^{-2}$ at $t = 35$, first drops below $10^{-3}$ at update 98 ($9.75 \times 10^{-4}$), and ends at $1.32 \times 10^{-5}$ at update 249.
+* **Gradient ascent (blue):** Converges linearly, with the gap shrinking by a roughly constant factor per step. It reaches $1.04 \times 10^{-2}$ at $t = 35$, first drops below $10^{-3}$ at update 98 ($9.75 \times 10^{-4}$), and reaches approximately $1.3 \times 10^{-5}$ by update 250.
 * **Newton-Raphson (red):** Converges quadratically, so the number of correct digits roughly doubles at each update near the optimum.
 
 | Update | Gap |
@@ -205,16 +224,11 @@ The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradie
 * **Gradient ascent at $\alpha = 0.5$:** Measured against the reference optimum, it first reaches a gap below $10^{-3}$ after 57 to 182 iterations, and it reached that gap on every dataset.
 * **Learning-rate sweep:** Gradient ascent stops at the gradient-norm tolerance of $10^{-5}$ or the 2000-iteration cap. At $\alpha = 0.05$ and $\alpha = 0.1$, the median run hits the cap. The medians for $\alpha = 0.5, 1.0, 2.0, 4.0$ are 683, 339, 166, and 65 iterations.
 
-These counts use different stopping rules, so compare the Newton and gradient ascent numbers only as stated above.
+These original counts use different stopping rules. At the **same reference objective gap below 10^-3**, the reproduced 20-seed study takes **4–5 Newton updates versus 57–182 gradient-ascent updates** (learning rate 0.5), reaching the threshold on all 20 datasets. These are small, two-feature synthetic problems; fewer updates do not establish a general runtime advantage.
 
-### Wall-Clock Time
+### Wall-clock time
 
-On the benchmark dataset, 50 repeated runs per method gave these medians, with interquartile ranges in brackets:
-
-* **Newton-Raphson:** 0.36 ms for 7 updates (0.35 to 0.37 ms), about 0.05 ms per update.
-* **Gradient ascent, $\alpha = 0.5$, 250 iterations:** 6.87 ms for 249 updates (6.85 to 6.95 ms), about 0.03 ms per update.
-
-These totals are not an accuracy-matched comparison. Gradient ascent's 249 updates end at a gap of $1.3 \times 10^{-5}$, while Newton reaches machine precision. The timings show that gradient ascent is cheaper per update in this setting, and that Newton's advantage is in the number of updates.
+`python -m experiments.study` measures 50 repeated runs per method and prints the median and interquartile range on the current machine. Newton uses its gradient-norm stopping rule; gradient ascent uses a 250-update budget. These timings are **not accuracy-matched speedup measurements** and depend on the machine, NumPy/BLAS, and process conditions. Compare update counts at a common objective gap using the CSV above.
 
 ### Damping Check
 
@@ -229,7 +243,7 @@ Each run used exactly 10 Newton updates, with the gradient stopping rule disable
 | Separable data (centers at $\pm 3$) | $10^{-8}$ | 3.598 | -0.000044 |
 | Separable data (centers at $\pm 3$) | $10^{-4}$ | 3.440 | -0.000056 |
 
-On the overlapping data, damping has no effect at any of the three values. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also has no effect, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a regularization effect, not a stabilization effect, and it appears only at the larger damping value. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
+On the overlapping data, damping has no effect at any of the three values. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also has no effect, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a finite-iteration damping effect; the experiment does not demonstrate prevention of a singular solve. Curvature damping is not the same as adding an L2 penalty to the objective. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
 
 ---
 
@@ -275,3 +289,11 @@ Run the 20-seed experiments, timing, and damping check:
 ```bash
 python -m experiments.study
 ```
+
+## Numerical checks and limitations
+
+`python -m unittest discover -s tests -v` checks finite-difference gradients, independent gradient-ascent/Newton agreement, extreme logits, rank-deficient curvature, iteration caps, and final objective consistency. A constructed duplicate-feature test makes an undamped solve singular while positive damping allows a finite fit. It is separate from the original overlapping/separable-data experiment and does not establish that the earlier experiment required damping.
+
+Histories now contain the initial objective and the objective after each update; `n_iter_` is the actual number of updates and `converged_` records whether the gradient tolerance was met. Earlier capped logs omitted the final post-update objective and therefore undercounted completed updates by one. OLS `cost` now corresponds to the returned parameters.
+
+The logistic solver uses full Newton steps without a line search. Damping alone does not guarantee global convergence. Separable data can lack a finite maximum-likelihood solution, and a small gradient does not imply bounded parameters. Results here are learning experiments, not novel algorithms or production-readiness claims.

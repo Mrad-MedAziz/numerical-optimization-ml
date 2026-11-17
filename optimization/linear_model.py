@@ -40,6 +40,8 @@ class LinearRegression:
     self.theta = np.zeros(d + 1)
     self.loss_history = []
 
+    if epochs < 0 or int(epochs) != epochs:
+      raise ValueError("epochs must be a nonnegative integer")
     for _ in range(epochs):
       residuals = (X_b @ self.theta) - y
       cost = (1.0 / (2.0 * n)) * (residuals @ residuals)
@@ -48,7 +50,9 @@ class LinearRegression:
       grad = (1.0 / n) * (X_b.T @ residuals)
       self.theta -= lr * grad
 
-    self.cost = self.loss_history[-1]
+    residuals = (X_b @ self.theta) - y
+    self.cost = float((residuals @ residuals) / (2.0 * n))
+    self.loss_history.append(self.cost)
     return self.theta
 
   def fit_armijo_gradient_descent(
@@ -68,6 +72,8 @@ class LinearRegression:
 
     cost_fn = lambda t: (1.0 / (2.0 * n)) * np.sum(((X_b @ t) - y) ** 2)
 
+    if epochs < 0 or int(epochs) != epochs:
+      raise ValueError("epochs must be a nonnegative integer")
     for _ in range(epochs):
       residuals = (X_b @ self.theta) - y
       cost = (1.0 / (2.0 * n)) * (residuals @ residuals)
@@ -77,7 +83,9 @@ class LinearRegression:
       alpha = backtracking_line_search(cost_fn, self.theta, grad, alpha=1.0)
       self.theta -= alpha * grad
 
-    self.cost = self.loss_history[-1]
+    residuals = (X_b @ self.theta) - y
+    self.cost = float((residuals @ residuals) / (2.0 * n))
+    self.loss_history.append(self.cost)
     return self.theta
 
   def predict(self, X: np.ndarray) -> np.ndarray:

@@ -16,7 +16,7 @@ model_newton.fit_newton(X, y)
 model_ga = LogisticRegression()
 model_ga.fit_gradient_ascent(X, y, lr=0.5, epochs=500)
 
-newton_updates = len(model_newton.log_likelihood_history) - 1
+newton_updates = model_newton.n_iter_
 print(f"Newton-Raphson converged in {newton_updates} updates")
 print(f"Newton Final Likelihood: {model_newton.likelihood:.6f}")
 print(f"Gradient Ascent Final Likelihood: {model_ga.likelihood:.6f}")

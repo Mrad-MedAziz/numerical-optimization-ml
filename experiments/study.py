@@ -1,6 +1,7 @@
 import time
+import csv
+from pathlib import Path
 import numpy as np
-from optimization.base import add_bias
 from optimization.logistic_model import LogisticRegression
 
 
@@ -31,7 +32,7 @@ def seeds_comparison():
 
         newton = LogisticRegression()
         newton.fit_newton(X, y, max_iter=20, tol=1e-8)
-        newton_updates.append(len(newton.log_likelihood_history) - 1)
+        newton_updates.append(newton.n_iter_)
 
         ga = LogisticRegression()
         ga.fit_gradient_ascent(X, y, lr=0.5, epochs=2000)
@@ -55,12 +56,12 @@ def learning_rate_sweep():
         for lr in learning_rates:
             model = LogisticRegression()
             model.fit_gradient_ascent(X, y, lr=lr, epochs=2000)
-            results[lr].append(len(model.log_likelihood_history) - 1)
+            results[lr].append(model.n_iter_)
 
     print("\nMedian iterations by learning rate (20 seeds, cap 2000)")
     for lr in learning_rates:
         med = int(np.median(results[lr]))
-        note = "  (cap reached: did not converge)" if med >= 1999 else ""
+        note = "  (cap reached: did not converge)" if med >= 2000 else ""
         print(f"  lr = {lr:<4}: {med} iterations{note}")
 
 
@@ -77,13 +78,13 @@ def timing(repeats: int = 50):
         t0 = time.perf_counter()
         m.fit_newton(X, y, max_iter=20, tol=1e-8)
         newton_ms.append((time.perf_counter() - t0) * 1e3)
-        newton_upd.append(len(m.log_likelihood_history) - 1)
+        newton_upd.append(m.n_iter_)
 
         g = LogisticRegression()
         t0 = time.perf_counter()
         g.fit_gradient_ascent(X, y, lr=0.5, epochs=250)
         ga_ms.append((time.perf_counter() - t0) * 1e3)
-        ga_upd.append(len(g.log_likelihood_history) - 1)
+        ga_upd.append(g.n_iter_)
 
     def summarize(name, ms, upd):
         q1, med, q3 = np.percentile(ms, [25, 50, 75])
@@ -110,14 +111,43 @@ def damping_check(updates: int = 10):
             m = LogisticRegression()
             m.fit_newton(X, y, max_iter=updates, tol=0.0, eps_reg=eps)
             # Log-likelihood at the final theta (after all updates)
-            p = LogisticRegression._sigmoid(add_bias(X) @ m.theta)
-            ll = m._cost(y, p)
+            ll = m.log_likelihood_history[-1]
             print(f"  eps = {eps:<7} norm = {np.linalg.norm(m.theta):.3f}  "
                   f"log-likelihood = {ll:.6f}")
 
 
+def matched_accuracy_comparison():
+    """Compare both methods at the same reference objective-gap threshold."""
+    rows = []
+    for seed in range(20):
+        X, y = generate_data(seed)
+        ell_star = reference_ell_star(X, y)
+        for name in ["Newton", "Gradient ascent"]:
+            model = LogisticRegression()
+            if name == "Newton":
+                model.fit_newton(X, y, max_iter=20, tol=1e-8)
+            else:
+                model.fit_gradient_ascent(X, y, lr=0.5, epochs=2000)
+            gap = np.abs(np.asarray(model.log_likelihood_history) - ell_star)
+            hits = np.flatnonzero(gap < 1e-3)
+            rows.append({"seed": seed, "method": name, "gap_threshold": 1e-3,
+                         "updates_to_gap": int(hits[0]) if hits.size else None,
+                         "total_updates": model.n_iter_, "converged": model.converged_})
+    Path("results").mkdir(exist_ok=True)
+    with open("results/matched_accuracy.csv", "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+    print("\nMatched accuracy (reference objective gap < 1e-3, 20 seeds)")
+    for name in ["Newton", "Gradient ascent"]:
+        values = [r["updates_to_gap"] for r in rows if r["method"] == name]
+        reached = [v for v in values if v is not None]
+        print(f"  {name}: {min(reached)} to {max(reached)} updates; "
+              f"{len(reached)}/{len(values)} datasets reached the threshold")
+
 if __name__ == "__main__":
     seeds_comparison()
+    matched_accuracy_comparison()
     learning_rate_sweep()
     timing()
     damping_check()
