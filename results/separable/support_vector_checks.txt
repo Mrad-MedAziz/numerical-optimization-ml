@@ -1,0 +1,19 @@
+
+Support-vector tolerance check
+Tolerance: 0.0001 Indices: [49 88]
+Tolerance: 1e-06 Indices: [49 88]
+Tolerance: 1e-08 Indices: [49 88]
+Tolerance: 1e-10 Indices: [49 88]
+Tolerance: 1e-12 Indices: [49 88]
+Tolerance: 1e-14 Indices: [49 88]
+
+Scores and solver multipliers for the original selection
+Point: 49
+Score: 1
+Score minus 1: 0
+Solver multiplier: 22330.785271
+Point: 88
+Score: 1.0000000000000007
+Score minus 1: 6.6613381477509392e-16
+Solver multiplier: 3603.46720643
+Smallest score outside that selection: 1.3776338416731324

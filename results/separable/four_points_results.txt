@@ -1,0 +1,8 @@
+Four-point experiment: lr=0.1, zero initialization, no intercept
+Exact SVM solution: (1, 0); maximum margin: 1
+Gurobi solution: [1.00000000e+00 5.68432379e-12]
+Update 1: loss=0.6329102857, weight norm=0.07905694, direction error=0.32036449, margin=0.94868330
+Update 1000: loss=0.0095213024, weight norm=3.99337077, direction error=0.12262812, margin=0.99248117
+Update 10000: loss=0.0009938571, weight norm=6.24097570, direction error=0.08004128, margin=0.99679670
+Update 100000: loss=0.0000999272, weight norm=8.53261748, direction error=0.05864964, margin=0.99828011
+Final weights: [8.51794231 0.50021976]

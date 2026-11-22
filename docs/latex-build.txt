@@ -1,0 +1,17 @@
+Style reference: the student's supplied baseball salary report.
+
+separable-data.tex uses the article class, 12pt A4, 2.5cm margins,
+Latin Modern fonts, numbered sections, standard captions and plain tables.
+It references the five figures under ../figures/separable/.
+
+To compile, use a LaTeX installation with the listed standard packages.
+From this docs directory, run:
+
+  pdflatex -interaction=nonstopmode -halt-on-error separable-data.tex
+  pdflatex -interaction=nonstopmode -halt-on-error separable-data.tex
+
+The distributed PDF was rendered as a visually checked article-style preview
+with embedded Computer Modern fonts using Matplotlib because a TeX compiler
+was unavailable on the preparation host. It is not a verified TeX compilation.
+Compiling the source may change line breaks, figure placement and pagination.
+The mathematical content and saved experimental results are unchanged.

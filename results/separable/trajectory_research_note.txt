@@ -1,0 +1,58 @@
+Research note for the eventual report
+Recorded: 22 November 2026
+
+Experiment
+100 strictly separable 2D observations, NumPy seed 42; labels in {-1,+1};
+no intercept, no regularization; mean logistic loss; full-batch gradient
+descent initialized at zero, fixed learning rate 0.1, 100000 updates.
+Independent reference: homogeneous hard-margin SVM solved with Gurobi.
+
+Observation and investigation
+The normalized weights first approached the SVM direction, then moved
+away over a later part of the finite run. We examined each observation's
+gradient contribution at the final weights, after 100000 updates.
+Each contribution was divided by the dataset size, matching the mean loss.
+
+We split the gradient into contributions from SVM support vectors and
+from the remaining observations. A natural hypothesis was that the support
+vectors would turn the weights toward the SVM direction. At these weights,
+however, a hypothetical update using only their contributions increased
+directional error. An update using only the other observations decreased it.
+These diagnostic updates were evaluated separately at the same weights;
+they were not separate training runs.
+
+Support gradient: approximately (-0.0000685110, -0.0038458517)
+Other gradient: approximately (-0.00100167, +0.00383373)
+Total gradient: approximately (-0.0010701786, -0.0000121208)
+
+Directional error before a hypothetical step: 0.010967378518756407
+After a support-only step of size 0.1: 0.01098029972361371
+After an other-only step of size 0.1: 0.010954475444092844
+After the combined step: 0.010967396610984913
+
+The groups' effects on the second weight nearly cancelled. Their combined
+update still increased the second weight slightly and increased directional
+error. This explains the local movement at that iteration, not the entire
+trajectory or an eventual reversal. We compare normalized directions,
+not raw weights. No monotone directional convergence is claimed.
+
+Point 88 has positive label and positive second feature. Holding the first
+weight fixed, increasing the second weight raises its signed score and
+reduces its individual logistic loss. Its gradient has a negative second
+component, so its negative-gradient update has a positive second component.
+The other support point opposes this effect; at this iterate it is weaker.
+
+Student-led diagnostic question
+The student questioned whether selecting support vectors using np.isclose
+could introduce tolerance artifacts. Testing tolerances from 1e-4 through
+1e-14 selected the same two indices (49 and 88). Scores were 1 and
+1.0000000000000007, both had positive solver multipliers, and the smallest
+score outside the selection was approximately 1.37763. These numerical
+checks supported the selection. See support_vector_checks.txt.
+
+Use in report
+Include a concise version of this investigation when drafting the report,
+subject to review against the final code and results. Distinguish observed
+finite-run behavior, local diagnostic evidence, and theorem guarantees.
+The assistant helped implement checks and formulate the explanation;
+do not present the wording or all implementation as independently authored.

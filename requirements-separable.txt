@@ -1,0 +1,2 @@
+-r requirements.txt
+gurobipy==14.0.0

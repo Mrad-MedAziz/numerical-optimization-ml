@@ -297,3 +297,66 @@ python -m experiments.study
 Histories now contain the initial objective and the objective after each update; `n_iter_` is the actual number of updates and `converged_` records whether the gradient tolerance was met. Earlier capped logs omitted the final post-update objective and therefore undercounted completed updates by one. OLS `cost` now corresponds to the returned parameters.
 
 The logistic solver uses full Newton steps without a line search. Damping alone does not guarantee global convergence. Separable data can lack a finite maximum-likelihood solution, and a small gradient does not imply bounded parameters. Results here are learning experiments, not novel algorithms or production-readiness claims.
+
+
+---
+
+## 8. Separable Data: Loss, Parameter Growth, and Stopping Criteria
+
+The original solver comparison prompted a follow-up question: does a small
+logistic gradient establish convergence when the data admit no finite
+maximum-likelihood estimate? This extension studies the unregularized,
+homogeneous model (no intercept), using labels in {-1, +1} and mean negative
+log-likelihood. This is gradient descent on the negative of the earlier
+log-likelihood; the label and intercept conventions are made explicit.
+
+The investigation follows several questions:
+
+* Can loss improve while the parameter norm grows?
+* How does the normalized direction compare with a hard-margin SVM reference?
+* Do larger safe steps, greater clearance, or tighter stopping tolerances
+  consistently improve finite-budget directional accuracy?
+* Could support-vector selection be a numerical-tolerance artifact, and
+  which observations drive a non-monotone update?
+
+The [technical study](docs/separable-data.md) gives the mathematical setting,
+21-run design, numerical checks, figures, follow-up diagnostics and limitations.
+A [PDF draft](docs/separable-data.pdf) is also available. The [LaTeX source](docs/separable-data.tex) follows a classic article layout; see [build notes](docs/latex-build.txt).
+It is a guided reproduction of Soudry et al. (2018), not a novel convergence
+result. The four-point control shows steady directional progress; some
+random-data trajectories pass near the SVM direction and then move away
+within the recorded budget. Neither observation proves an infinite-time limit.
+
+At the same seed-42 dataset and learning rate 0.5/B, tightening the gradient
+norm tolerance from 1e-2 to 1e-3 requires 160 versus 5,505 updates and returns
+directional error 0.00626 versus 0.01115. Both tolerances were reached.
+Requested tolerances 1e-4 and 1e-5 instead hit the 100,000-update budget;
+they are not reported as tolerance-converged runs.
+
+![Stopping criteria on separable data](figures/separable/stopping_comparison.png)
+
+### Reproduce the extension
+
+The QP reference uses Gurobi. Install the optional dependency with an
+appropriate Gurobi license, then run from the repository root:
+
+```bash
+python -m pip install -r requirements-separable.txt
+python -m experiments.separable_control
+python -m experiments.separable_diagnostics
+python -m experiments.separable
+python -m unittest discover -s tests -v
+```
+
+`experiments.separable` saves CSVs, exact datasets, reference checks and
+configuration under `results/separable/`, with figures under
+`figures/separable/`. It checks seven datasets (a four-point control plus
+three seeds for each random family), three step sizes and four stopping
+tolerances. The control and exploratory diagnostic use step 0.1; the repeated
+suite uses steps 0.1/B, 0.5/B and 1/B. The original overlapping-data solver
+comparison remains available through `python -m experiments.study`.
+
+A small gradient is a stopping measurement, not a certificate of a finite
+minimizer or of directional accuracy. The new mathematical and experimental
+arguments, limitations, sources and assistance statement are documented in
+the study rather than presented as independent discoveries.
