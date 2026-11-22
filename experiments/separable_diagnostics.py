@@ -1,7 +1,8 @@
 from pathlib import Path
+import json
 import numpy as np
 import matplotlib.pyplot as plt
-from optimization.separable_logistic import logistic_loss, logistic_gradient, sigmoid, gradient_descent, max_margin_solution
+from optimization.separable_logistic import logistic_loss, logistic_gradient, gradient_descent, max_margin_solution, gradient_diagnostic
 
 OUTPUT = Path(__file__).resolve().parents[1] / "figures" / "separable"
 
@@ -41,13 +42,17 @@ def main():
     w, losses, gradient_norms, weight_norms, directions, direction_errors, margins = gradient_descent(
         X, y, w_hat, print_every=10000)
 
-    s = y * (X @ w)
-    coefficients = -y * sigmoid (-s)
-    contributions_to_gradient = (coefficients.reshape(-1, 1) * X) / X.shape[0]
+    diagnostic = gradient_diagnostic(X, y, w, w_hat, lr=0.1)
+    diagnostic.update(dataset="gaussian_sign", seed=42, updates=100000,
+                      svm_weights=w_hat.tolist(), multipliers=multipliers.tolist())
+    results = OUTPUT.parents[1] / "results" / "separable"
+    results.mkdir(parents=True, exist_ok=True)
+    (results / "gradient_diagnostic.json").write_text(json.dumps(diagnostic, indent=2) + "\n")
+    contributions_to_gradient = np.asarray(diagnostic["point_contributions"])
     contribution_norms = np.linalg.norm(contributions_to_gradient, axis=1)
     largest = np.argsort(contribution_norms)[-5:][::-1]
-    support_gradient = contributions_to_gradient[support].sum(axis=0)
-    other_gradient = contributions_to_gradient[~support].sum(axis=0)
+    support_gradient = np.asarray(diagnostic["support_gradient"])
+    other_gradient = np.asarray(diagnostic["other_gradient"])
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     axes = axes.flatten()
@@ -115,7 +120,8 @@ def main():
     print("Support gradient:", support_gradient)
     print("Non-support gradient:", other_gradient)
     print("Total gradient:", contributions_to_gradient.sum(axis=0))
-    print("Current directional error:", np.linalg.norm(w / np.linalg.norm(w) - svm_direction))
+    print("Gradient reconstruction error:", diagnostic["reconstruction_error"])
+    print("Current directional error:", diagnostic["current_direction_error"])
     for label, gradient in [("Support only", support_gradient),
                                     ("Other points only", other_gradient),
                                     ("Combined", support_gradient + other_gradient)]:

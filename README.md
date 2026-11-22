@@ -2,6 +2,21 @@
 
 Independent implementations of ordinary least squares and binary logistic regression in NumPy, following the mathematical formulations studied in Stanford CS229. The project examines gradients, curvature, convergence experiments, and numerical limitations without using machine learning frameworks.
 
+## Main investigation
+
+**Does a small logistic gradient establish convergence when no finite minimizer exists?**
+On the documented separable seed-42 dataset, tightening the gradient tolerance
+from `1e-2` to `1e-3` requires 160 versus 5,505 updates but increases the distance
+to the SVM direction from 0.00626 to 0.01115. Both thresholds are reached.
+This is a finite-time counterexample to a better-direction interpretation of a
+tighter gradient tolerance, not a contradiction of the published asymptotic result.
+
+Read the [technical report](docs/separable-data.pdf), inspect the
+[saved stopping results](results/separable/stopping_comparison.csv), or go to the
+[reproduction commands](#reproduce-the-extension). The investigation builds on
+the original solver comparison below; the directional convergence theorem is
+attributed to Soudry et al. (2018).
+
 ## Run it
 
 ```bash
@@ -159,11 +174,11 @@ ell = -np.mean(np.logaddexp(0.0, signed_z))
 
 | Algorithm | Order | Per-iteration time | Memory | Convergence rate |
 | :--- | :--- | :--- | :--- | :--- |
-| OLS (normal equations) | Analytical | O(nd^2 + d^3), single solve | O(d^2) | Direct solve; subject to floating-point error |
-| Gradient ascent | First-order | O(nd) | O(d) | Linear under suitable local strong concavity and step size |
+| OLS (normal equations) | Analytical | O(nd^2 + d^3), single solve | O(nd + d^2) | Direct solve; subject to floating-point error |
+| Gradient ascent | First-order | O(nd) | O(nd + d) | Linear under suitable local strong concavity and step size |
 | Newton-Raphson / IRLS | Second-order | O(nd^2 + d^3) | O(nd + d^2) | Locally quadratic for undamped Newton under regularity assumptions |
 
-Memory entries describe solver working storage in addition to the input data and stored histories. The current Newton implementation materializes a weighted design matrix. Broadcasting avoids an n-by-n weight matrix, but Hessian multiplication still costs O(nd^2).
+Memory entries describe solver working storage in addition to the input data and stored histories. All three implementations allocate the augmented design matrix, which costs O(nd); gradient ascent also creates observation-sized vectors. The current Newton implementation materializes a weighted design matrix. Broadcasting avoids an n-by-n weight matrix, but Hessian multiplication still costs O(nd^2).
 
 The following textbook rates require assumptions: a finite solution, sufficient curvature, and an appropriate step size or starting point. They are not unconditional guarantees for separable logistic data. A fixed positive damping value can change Newton's asymptotic rate.
 
@@ -198,8 +213,8 @@ The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradie
 
 ### Interpretation
 
-* **Gradient ascent (blue):** Converges linearly, with the gap shrinking by a roughly constant factor per step. It reaches $1.04 \times 10^{-2}$ at $t = 35$, first drops below $10^{-3}$ at update 98 ($9.75 \times 10^{-4}$), and reaches approximately $1.3 \times 10^{-5}$ by update 250.
-* **Newton-Raphson (red):** Converges quadratically, so the number of correct digits roughly doubles at each update near the optimum.
+* **Gradient ascent (blue):** The observed gap reduction is consistent with a linear convergence regime. It reaches $1.04 \times 10^{-2}$ at $t = 35$, first drops below $10^{-3}$ at update 98 ($9.75 \times 10^{-4}$), and reaches approximately $1.3 \times 10^{-5}$ by update 250.
+* **Newton-Raphson (red):** The observed decrease before the floating-point floor is consistent with a local quadratic convergence phase. This experiment does not establish the asymptotic convergence order of the damped implementation.
 
 | Update | Gap |
 | :--- | :--- |
@@ -251,19 +266,25 @@ On the overlapping data, damping has no effect at any of the three values. On se
 
 ```text
 numerical-optimization-ml/
-├── README.md                 # Derivations and benchmark documentation
-├── requirements.txt          # Dependencies (numpy, matplotlib)
-├── benchmark.py              # Convergence experiment and plot generator
+├── README.md
+├── benchmark.py                  # Original convergence comparison
+├── requirements.txt             # NumPy and Matplotlib
+├── requirements-separable.txt   # Optional Gurobi dependency
+├── docs/separable-data.pdf       # Questions, experiments and conclusions
 ├── experiments/
-│   ├── __init__.py           # Makes experiments a package
-│   └── study.py              # 20-seed comparison, learning-rate sweep, timing, damping check
-├── figures/
-│   └── convergence.png       # Generated optimality gap plot
-└── optimization/
-    ├── __init__.py           # Public package exports
-    ├── base.py               # Bias augmentation and line search routines
-    ├── linear_model.py       # Closed-form and iterative OLS estimators
-    └── logistic_model.py     # Gradient ascent and Newton-Raphson logistic solvers
+│   ├── study.py                  # Original solver comparisons
+│   ├── separable.py              # 21-run suite and stopping thresholds
+│   ├── separable_control.py      # Exact four-point control
+│   ├── separable_diagnostics.py  # Support and gradient diagnostics
+│   └── separable_extensions.py   # Fixed-step clearance and L2 comparison
+├── optimization/
+│   ├── base.py                   # Bias augmentation and line search
+│   ├── linear_model.py           # OLS solvers
+│   ├── logistic_model.py         # Gradient ascent and Newton
+│   └── separable_logistic.py     # Homogeneous loss, diagnostics and QP
+├── tests/                        # Automated numerical and stopping checks
+├── results/                      # CSVs, datasets, diagnostics and settings
+└── figures/                      # Original benchmark and separable study
 ```
 
 ---
@@ -320,7 +341,7 @@ The investigation follows several questions:
   which observations drive a non-monotone update?
 
 The [technical report](docs/separable-data.pdf) gives the mathematical setting,
-21-run design, numerical checks, figures, follow-up diagnostics and limitations.
+21-run design, numerical checks, figures, follow-up diagnostics, fixed-step clearance and regularization comparisons, and limitations.
 It is a guided reproduction of Soudry et al. (2018), not a novel convergence
 result. The four-point control shows steady directional progress; some
 random-data trajectories pass near the SVM direction and then move away
@@ -344,6 +365,7 @@ python -m pip install -r requirements-separable.txt
 python -m experiments.separable_control
 python -m experiments.separable_diagnostics
 python -m experiments.separable
+python -m experiments.separable_extensions
 python -m unittest discover -s tests -v
 ```
 
@@ -359,3 +381,36 @@ A small gradient is a stopping measurement, not a certificate of a finite
 minimizer or of directional accuracy. The new mathematical and experimental
 arguments, limitations, sources and assistance statement are documented in
 the study rather than presented as independent discoveries.
+
+
+### Follow-up comparisons
+
+`python -m experiments.separable_extensions` runs two additional comparisons:
+
+* **Clearance at a shared absolute step:** each original/clearance pair uses
+  `0.5 / max(B_original, B_clearance)` for both datasets, from zero, for 100,000
+  updates. This removes the different-step-size confound within a pair; the
+  transformation still changes the data geometry. See the
+  [six endpoints](results/separable/clearance_fixed_step_results.csv) and
+  [trajectories](results/separable/clearance_fixed_step_trajectories.csv).
+* **Explicit L2 regularization:** on original seed 42, minimize
+  `F(w) = L(w) + penalty * ||w||^2 / 2` with penalties `0`, `1e-2`, `1e-3`,
+  and `1e-4`. The step is `0.5 / (B + penalty)`. Stop at the gradient norm
+  of **F** below `1e-10` or 100,000 updates. Positive penalties make F
+  coercive and strongly convex, giving a unique finite minimizer. Each positive
+  penalty is checked against a separate Newton reference with backtracking
+  and a strong-convexity objective-gap bound. The unregularized SVM direction
+  is a comparison, not the optimization target for a positive penalty. See the
+  [endpoints and reference checks](results/separable/regularization_results.csv),
+  [trajectories](results/separable/regularization_trajectories.csv), and
+  [settings](results/separable/extensions_configuration.json).
+
+The exploratory diagnostic also writes
+[`gradient_diagnostic.json`](results/separable/gradient_diagnostic.json), including
+point contributions, support selections across tolerances, grouped gradients,
+and hypothetical one-step directional errors. An executed assertion checks
+that the two groups reconstruct the implemented full gradient.
+
+The automated checks now also test threshold crossings, budget exhaustion,
+zero initialization, recorded measurement alignment, grouped contributions,
+and the regularized gradient and finite solution on a small control problem.

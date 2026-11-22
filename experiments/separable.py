@@ -6,7 +6,6 @@ import json
 import time
 import sys
 import matplotlib
-import gurobipy as gp
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -98,22 +97,30 @@ def measurements(X, y, w, gradient, target, maximum_margin):
     }
 
 
-def run_one(X, y, w_hat, lr, metadata):
+def run_one(X, y, w_hat, lr, metadata, n_steps=STEPS, tolerances=None):
+    if tolerances is None:
+        tolerances = TOLERANCES
+    if n_steps < 0 or int(n_steps) != n_steps or not np.isfinite(lr) or lr <= 0:
+        raise ValueError("n_steps must be a nonnegative integer and lr finite and positive")
+    if any(not np.isfinite(tol) or tol < 0 for tol in tolerances):
+        raise ValueError("Tolerances must be finite and nonnegative")
     w = np.zeros(X.shape[1])
     target = w_hat / np.linalg.norm(w_hat)
     maximum_margin = 1 / np.linalg.norm(w_hat)
-    checkpoints = set(np.geomspace(1, STEPS, 150).astype(int)) | {0, 1000, 10000, STEPS}
+    checkpoints = {0, n_steps}
+    if n_steps > 0:
+        checkpoints |= set(np.geomspace(1, n_steps, 150).astype(int)) | {1000, 10000}
     snapshots, crossings = [], {}
     gradient = logistic_gradient(X, y, w)
     previous_loss = logistic_loss(X, y, w)
     increases = 0
     final = None
-    for step in range(STEPS + 1):
+    for step in range(n_steps + 1):
         current_loss = logistic_loss(X, y, w)
         if current_loss > previous_loss + 1e-12:
             increases += 1
         previous_loss = current_loss
-        new_thresholds = [tol for tol in TOLERANCES if tol not in crossings and np.linalg.norm(gradient) < tol]
+        new_thresholds = [tol for tol in tolerances if tol not in crossings and np.linalg.norm(gradient) < tol]
         if step in checkpoints or new_thresholds:
             measured = measurements(X, y, w, gradient, target, maximum_margin)
             row = dict(metadata, update=step, **measured)
@@ -121,15 +128,15 @@ def run_one(X, y, w_hat, lr, metadata):
                 snapshots.append(row)
             for tol in new_thresholds:
                 crossings[tol] = dict(row, tolerance=tol, stop_reason="gradient_tolerance")
-            if step == STEPS:
+            if step == n_steps:
                 final = row
-        if step == STEPS:
+        if step == n_steps:
             break
         w = w - lr * gradient
         gradient = logistic_gradient(X, y, w)
         if not np.all(np.isfinite(w)) or not np.all(np.isfinite(gradient)):
             raise RuntimeError("Nonfinite iterate")
-    for tol in TOLERANCES:
+    for tol in tolerances:
         if tol not in crossings:
             crossings[tol] = dict(final, tolerance=tol, stop_reason="iteration_budget")
     assert increases == 0, "Loss increased despite the selected safe step"
@@ -212,6 +219,7 @@ def plot_results(history, stopping):
 
 
 def main():
+    import gurobipy as gp
     OUTPUT.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
     all_history, all_stops, all_final, references = [], [], [], []
