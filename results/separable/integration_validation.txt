@@ -1,1 +1,0 @@
-All 11 unit tests passed. The integrated control, diagnostic and 21-run suite completed. Final, stopping, reference and trajectory CSVs match the pre-integration results exactly.

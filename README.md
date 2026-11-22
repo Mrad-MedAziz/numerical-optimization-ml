@@ -319,9 +319,8 @@ The investigation follows several questions:
 * Could support-vector selection be a numerical-tolerance artifact, and
   which observations drive a non-monotone update?
 
-The [technical study](docs/separable-data.md) gives the mathematical setting,
+The [technical report](docs/separable-data.pdf) gives the mathematical setting,
 21-run design, numerical checks, figures, follow-up diagnostics and limitations.
-A [PDF draft](docs/separable-data.pdf) is also available. The [LaTeX source](docs/separable-data.tex) follows a classic article layout; see [build notes](docs/latex-build.txt).
 It is a guided reproduction of Soudry et al. (2018), not a novel convergence
 result. The four-point control shows steady directional progress; some
 random-data trajectories pass near the SVM direction and then move away

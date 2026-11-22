@@ -1,1 +1,0 @@
-Verified: 21 completed runs, 84 stopping endpoints, 7 reference checks; finite final metrics, valid margin bounds and stopping classifications. Four comparison figures generated.
