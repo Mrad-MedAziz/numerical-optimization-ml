@@ -1,6 +1,6 @@
 # Numerical Optimization & First-Principles Machine Learning
 
-Independent implementations of ordinary least squares and binary logistic regression in NumPy, following the mathematical formulations studied in Stanford CS229. The project examines gradients, curvature, convergence experiments, and numerical limitations without using machine learning frameworks.
+Independent implementations of ordinary least squares and binary logistic regression in NumPy, following the mathematical formulations studied in Stanford CS229. The project examines gradients, curvature, convergence experiments, and numerical limitations without using machine learning frameworks. The separable-data experiments use Gurobi to compute the hard-margin SVM reference.
 
 ## Main investigation
 
@@ -28,7 +28,7 @@ python -m experiments.study
 python -m unittest discover -s tests -v
 ```
 
-Run commands from the repository root. The study writes per-seed, accuracy-matched results to [`results/matched_accuracy.csv`](results/matched_accuracy.csv). The `test_*.py` files at the root are original demonstration scripts; `tests/test_numerics.py` contains the automated numerical checks.
+Run commands from the repository root. The study writes per-seed, accuracy-matched results to [`results/matched_accuracy.csv`](results/matched_accuracy.csv). The `test_*.py` files at the root are original demonstration scripts; `tests/` contains the automated numerical, stopping, and diagnostic checks. The QP test needs the optional Gurobi dependency and a working license; it is skipped when that dependency is not installed.
 
 ---
 
@@ -209,7 +209,7 @@ The benchmark compares first-order gradient ascent with second-order Newton-Raph
 
 ![Convergence rate comparison](./figures/convergence.png)
 
-The horizontal axis is truncated at $t = 35$ to show the quadratic phase. Gradient ascent continues to $t = 250$.
+The horizontal axis is truncated at $t = 35$ to show the early updates in detail. Gradient ascent continues to $t = 250$.
 
 ### Interpretation
 
@@ -258,7 +258,7 @@ Each run used exactly 10 Newton updates, with the gradient stopping rule disable
 | Separable data (centers at $\pm 3$) | $10^{-8}$ | 3.598 | -0.000044 |
 | Separable data (centers at $\pm 3$) | $10^{-4}$ | 3.440 | -0.000056 |
 
-On the overlapping data, damping has no effect at any of the three values. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also has no effect, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a finite-iteration damping effect; the experiment does not demonstrate prevention of a singular solve. Curvature damping is not the same as adding an L2 penalty to the objective. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
+On the overlapping data, the three settings agree at the precision shown. On separable data, $\epsilon_{\text{reg}} = 10^{-8}$ also agrees with the undamped result at the precision shown, and $10^{-4}$ shrinks the parameter norm while lowering the log-likelihood slightly. This is a finite-iteration damping effect; the experiment does not demonstrate prevention of a singular solve. Curvature damping is not the same as adding an L2 penalty to the objective. Separable data has no finite maximum likelihood estimate, so these values describe the state after 10 updates, not a converged solution.
 
 ---
 
@@ -315,7 +315,7 @@ python -m experiments.study
 
 `python -m unittest discover -s tests -v` checks finite-difference gradients, independent gradient-ascent/Newton agreement, extreme logits, rank-deficient curvature, iteration caps, and final objective consistency. A constructed duplicate-feature test makes an undamped solve singular while positive damping allows a finite fit. It is separate from the original overlapping/separable-data experiment and does not establish that the earlier experiment required damping.
 
-Histories now contain the initial objective and the objective after each update; `n_iter_` is the actual number of updates and `converged_` records whether the gradient tolerance was met. Earlier capped logs omitted the final post-update objective and therefore undercounted completed updates by one. OLS `cost` now corresponds to the returned parameters.
+Histories contain the initial objective and the objective after each update. In the original logistic solvers, `n_iter_` counts the updates and `converged_` records whether the gradient tolerance was met. OLS `cost` is evaluated at the returned parameters.
 
 The logistic solver uses full Newton steps without a line search. Damping alone does not guarantee global convergence. Separable data can lack a finite maximum-likelihood solution, and a small gradient does not imply bounded parameters. Results here are learning experiments, not novel algorithms or production-readiness claims.
 
@@ -328,8 +328,7 @@ The original solver comparison prompted a follow-up question: does a small
 logistic gradient establish convergence when the data admit no finite
 maximum-likelihood estimate? This extension studies the unregularized,
 homogeneous model (no intercept), using labels in {-1, +1} and mean negative
-log-likelihood. This is gradient descent on the negative of the earlier
-log-likelihood; the label and intercept conventions are made explicit.
+log-likelihood. It uses the same logistic objective as the earlier comparison after negating the log-likelihood, recoding the labels, and fixing the intercept at zero.
 
 The investigation follows several questions:
 
@@ -342,8 +341,7 @@ The investigation follows several questions:
 
 The [technical report](docs/separable-data.pdf) gives the mathematical setting,
 21-run design, numerical checks, figures, follow-up diagnostics, fixed-step clearance and regularization comparisons, and limitations.
-It is a guided reproduction of Soudry et al. (2018), not a novel convergence
-result. The four-point control shows steady directional progress; some
+The numerical study illustrates the setting of [Soudry et al. (2018)](https://www.jmlr.org/papers/v19/18-188.html) and investigates finite-run behavior. The four-point control shows steady directional progress; some
 random-data trajectories pass near the SVM direction and then move away
 within the recorded budget. Neither observation proves an infinite-time limit.
 
@@ -373,7 +371,7 @@ python -m unittest discover -s tests -v
 configuration under `results/separable/`, with figures under
 `figures/separable/`. It checks seven datasets (a four-point control plus
 three seeds for each random family), three step sizes and four stopping
-tolerances. The control and exploratory diagnostic use step 0.1; the repeated
+tolerances. The control and exploratory diagnostic use step 0.1 and open plot windows on interactive backends. Close the windows to continue to the next command. For a headless run, set the environment variable `MPLBACKEND` to `Agg`. The repeated
 suite uses steps 0.1/B, 0.5/B and 1/B. The original overlapping-data solver
 comparison remains available through `python -m experiments.study`.
 
